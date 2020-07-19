@@ -90,13 +90,13 @@ def main():
     # Training settings
     # Note: Hyper-parameters need to be tuned in order to obtain results reported in the paper.
     parser = argparse.ArgumentParser(description='PyTorch graph convolutional neural net for whole-graph classification')
-    parser.add_argument('--dataset', type=str, default="PROTEINS",
+    parser.add_argument('--dataset', type=str, default="IMDBBINARY",
                         help='name of dataset (default: PTC)')
     parser.add_argument('--motif', type=str, default="triangle",
                         help='triangle, 3star, square')
     parser.add_argument('--batch_size', type=int, default=32,
                         help='input batch size for training (default: 32)')
-    parser.add_argument('--epochs', type=int, default=130,
+    parser.add_argument('--epochs', type=int, default=300,
                         help='number of epochs to train (default: 350)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate (default: 0.01)')
@@ -111,7 +111,7 @@ def main():
     					help='let the input node features be the degree of nodes (heuristics for unlabeled graph)')
     parser.add_argument('--filename', type=str, default="", help='output file')
     parser.add_argument("--train_set_ratio", type=float, default=0.8, help='the ratio of training set')
-    parser.add_argument('--num_pool_layers', type=int, default=3, help='the number of pooling layers')
+    parser.add_argument('--num_pool_layers', type=int, default=1, help='the number of pooling layers')
     parser.add_argument('--neighbor_pool_type', type=str, default='average', choices=['sum', 'average', 'max'],
                         help='pooling for neighboring nodes')
     args = parser.parse_args()
@@ -140,9 +140,39 @@ def main():
         #     print("remove graph")
         #     continue
         g = graph.g
+        # nx.draw_networkx(g, with_labels=True)
+        # plt.show()
+        # print("directed", nx.is_directed(g))
         for pool_layer in range(args.num_pool_layers):
-            result = ESU(g, four_clique_size)
-            classes, motif_nodes = match_motif_with_overlap(result, four_clique)
+            # result = ESU(g, four_clique_size)
+            # classes, motif_nodes = match_motif_with_overlap(result, four_clique)
+            # assum_mat, adj, g = gen_new_graph(classes, motif_nodes, four_clique, g)
+            #
+            # print("new graph", g.number_of_nodes())
+            # # nx.draw_networkx(g, with_labels=True)
+            # # plt.show()
+            # assum_mat = assum_mat.to(args.device)
+            # edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
+            # graph.g_list.append(g)
+            # graph.assume_mat.append(assum_mat)
+            # graph.edges.append(edges)
+            #
+            # result = ESU(g, motif_size)
+            # classes, motif_nodes = match_motif_with_overlap(result, motif)
+            # assum_mat, adj, g = gen_new_graph(classes, motif_nodes, motif, g)
+            #
+            # print("new graph", g.number_of_nodes())
+            # # nx.draw_networkx(g, with_labels=True)
+            # # plt.show()
+            # assum_mat = assum_mat.to(args.device)
+            # edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
+            # graph.g_list.append(g)
+            # graph.assume_mat.append(assum_mat)
+            # graph.edges.append(edges)
+
+
+            classes, motif_nodes = pool_without_overlap(g, four_clique)
+            # print("second is directed", nx.is_directed(g))
             assum_mat, adj, g = gen_new_graph(classes, motif_nodes, four_clique, g)
 
             print("new graph", g.number_of_nodes())
@@ -154,8 +184,7 @@ def main():
             graph.assume_mat.append(assum_mat)
             graph.edges.append(edges)
 
-            result = ESU(g, motif_size)
-            classes, motif_nodes = match_motif_with_overlap(result, motif)
+            classes, motif_nodes = pool_without_overlap(g, motif)
             assum_mat, adj, g = gen_new_graph(classes, motif_nodes, motif, g)
 
             print("new graph", g.number_of_nodes())

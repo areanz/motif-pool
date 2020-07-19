@@ -1,11 +1,10 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
-import copy
-import scipy.sparse as sp
 import torch
 import time
 import logging
+from networkx.algorithms.community.kclique import k_clique_communities
 from copy import deepcopy
 # 找出一个图中节点数为k的所有子图
 def ESU(graph, k):
@@ -88,56 +87,27 @@ def def_motif(motif):
         return four_clique
 
 
-def match_motif_with_overlap(subgraphs, motif):
-    start_time = time.time()
-    # classes是所有的motif
-    classes = []
-    subgraph_matched = []
-
-    for i in subgraphs:
-        if nx.is_isomorphic(i, motif):
-            subgraph_matched.append(i)
-            classes.append(list(i.nodes))
-    end_time = time.time()
-    logging.warning("match time {}".format(end_time - start_time))
-    print("number of subgraph {}".format(len(subgraphs)))
-    print("num of matched subgraphs {}".format(len(subgraph_matched)))
-    # motif_nodes is a set of nodes which are nodes of matched subgraphs
-    motif_nodes = set()
-    start_time = time.time()
-    for i in range(len(subgraph_matched)-1, 0, -1):
-        for j in range(i-1, -1, -1):
-            overlap_nodes = set(classes[j]) & set(classes[i])
-            if len(overlap_nodes) >= (motif.number_of_nodes()/2):
-                classes.remove(classes[i])
-                break
-    for i in classes:
-        motif_nodes = motif_nodes.union(set(i))
-    end_time = time.time()
-    logging.warning("wipe out overlap time {}".format(end_time-start_time))
-    # print('motif_ndes', motif_nodes)
-    return classes, motif_nodes
-
-# def pool_without_overlap(g, motif_clique):
-# # def match_motif_with_overlap(g, motif_clique):
-#     g = g.deepcopy()
-#     g = g.to_undirected()
+# def match_motif_with_overlap(subgraphs, motif):
 #     start_time = time.time()
-#     all_cliques = nx.algorithms.clique.enumerate_all_cliques(g)
+#     # classes是所有的motif
 #     classes = []
 #     subgraph_matched = []
-#     for clique in all_cliques:
-#         if len(clique) == motif_clique.number_of_nodes():
-#             subgraph_matched.append(clique)
-#             classes.append(list(clique.nodes))
+#
+#     for i in subgraphs:
+#         if nx.is_isomorphic(i, motif):
+#             subgraph_matched.append(i)
+#             classes.append(list(i.nodes))
 #     end_time = time.time()
 #     logging.warning("match time {}".format(end_time - start_time))
-#
+#     print("number of subgraph {}".format(len(subgraphs)))
+#     print("num of matched subgraphs {}".format(len(subgraph_matched)))
+#     # motif_nodes is a set of nodes which are nodes of matched subgraphs
+#     motif_nodes = set()
 #     start_time = time.time()
 #     for i in range(len(subgraph_matched)-1, 0, -1):
 #         for j in range(i-1, -1, -1):
 #             overlap_nodes = set(classes[j]) & set(classes[i])
-#             if len(overlap_nodes) >= (motif_clique.number_of_nodes()/2):
+#             if len(overlap_nodes) >= (motif.number_of_nodes()/2):
 #                 classes.remove(classes[i])
 #                 break
 #     for i in classes:
@@ -146,6 +116,47 @@ def match_motif_with_overlap(subgraphs, motif):
 #     logging.warning("wipe out overlap time {}".format(end_time-start_time))
 #     # print('motif_ndes', motif_nodes)
 #     return classes, motif_nodes
+
+def pool_without_overlap(g, motif_clique):
+# def match_motif_with_overlap(g, motif_clique):
+#     nx.draw_networkx(g)
+#     plt.show()
+    motif_nodes = set()
+
+    start_time = time.time()
+    all_cliques = nx.algorithms.clique.enumerate_all_cliques(g)
+    overlap_clique = k_clique_communities(g, motif_clique.number_of_nodes())
+    classes = []
+    # subgraph_matched = []
+    # i = 0
+    # for clique in all_cliques:
+    #     # print(i)
+    #     # i += 1
+    #     # print(len(clique))
+    #     if len(clique) <= motif_clique.number_of_nodes():
+    #         if len(clique) == motif_clique.number_of_nodes():
+    #             subgraph_matched.append(clique)
+    #             classes.append(clique)
+    #     else:
+    #         break
+    # end_time = time.time()
+    # logging.warning("match time {}".format(end_time - start_time))
+    #
+    # start_time = time.time()
+    # for i in range(len(subgraph_matched)-1, 0, -1):
+    #     for j in range(i-1, -1, -1):
+    #         overlap_nodes = set(classes[j]) & set(classes[i])
+    #         if len(overlap_nodes) >= (motif_clique.number_of_nodes()/2):
+    #             classes.remove(classes[i])
+    #             break
+    for clique in overlap_clique:
+        classes.append(list(clique))
+    for i in classes:
+        motif_nodes = motif_nodes.union(set(i))
+    end_time = time.time()
+    logging.warning("wipe out overlap time {}".format(end_time-start_time))
+    # print('motif_ndes', motif_nodes)
+    return classes, motif_nodes
 
 
 
@@ -175,6 +186,7 @@ def gen_new_graph(classes, motif_nodes, motif, g):
             # temp_list[classes[i][j]] = 1
         assum_list.append(temp_list)
     key_index = len(classes)
+    # print("none motif nodes", none_motif_nodes)
     for node in none_motif_nodes:
         node_dic[node].append(key_index)
         new_graph.add_node(key_index)
@@ -182,7 +194,8 @@ def gen_new_graph(classes, motif_nodes, motif, g):
         temp_list = [0] * nodes_num_of_graph
         try:
             temp_list[node] = 1
-        except:
+        except Exception as e:
+            print(e)
             print('node', node)
             print('nodes_num_of_graph', len(temp_list))
             graph_nodes = list(g.nodes)
