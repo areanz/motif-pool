@@ -90,11 +90,11 @@ def main():
     # Training settings
     # Note: Hyper-parameters need to be tuned in order to obtain results reported in the paper.
     parser = argparse.ArgumentParser(description='PyTorch graph convolutional neural net for whole-graph classification')
-    parser.add_argument('--dataset', type=str, default="IMDBBINARY",
+    parser.add_argument('--dataset', type=str, default="MUTAG",
                         help='name of dataset (default: PTC)')
     parser.add_argument('--motif', type=str, default="triangle",
                         help='triangle, 3star, square')
-    parser.add_argument('--batch_size', type=int, default=32,
+    parser.add_argument('--batch_size', type=int, default=4,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--epochs', type=int, default=300,
                         help='number of epochs to train (default: 350)')
@@ -111,6 +111,7 @@ def main():
     					help='let the input node features be the degree of nodes (heuristics for unlabeled graph)')
     parser.add_argument('--filename', type=str, default="", help='output file')
     parser.add_argument("--train_set_ratio", type=float, default=0.8, help='the ratio of training set')
+    parser.add_argument("--adaptive_ratio", type=float, default=0.5, help='the ratio of neighbors in adaptive graph')
     parser.add_argument('--num_pool_layers', type=int, default=3, help='the number of pooling layers')
     parser.add_argument('--neighbor_pool_type', type=str, default='average', choices=['sum', 'average', 'max'],
                         help='pooling for neighboring nodes')
@@ -133,64 +134,25 @@ def main():
     # four_clique_size = four_clique.number_of_nodes()
     clique_list = [5,4,3]
     # reverse graphs[] to make sure the index of graph is right when remove a graph from graphs[]
-    for graph in graphs[::-1]:
-        print("original graph",  graph.g.number_of_nodes())
-        g = graph.g
-        nx.draw_networkx(g, with_labels=True)
-        plt.show()
-        # print("directed", nx.is_directed(g))
-        for pool_layer in range(args.num_pool_layers):
-            # result = ESU(g, four_clique_size)
-            # classes, motif_nodes = match_motif_with_overlap(result, four_clique)
-            # assum_mat, adj, g = gen_new_graph(classes, motif_nodes, four_clique, g)
-            #
-            # print("new graph", g.number_of_nodes())
-            # # nx.draw_networkx(g, with_labels=True)
-            # # plt.show()
-            # assum_mat = assum_mat.to(args.device)
-            # edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
-            # graph.g_list.append(g)
-            # graph.assume_mat.append(assum_mat)
-            # graph.edges.append(edges)
-            #
-            # result = ESU(g, motif_size)
-            # classes, motif_nodes = match_motif_with_overlap(result, motif)
-            # assum_mat, adj, g = gen_new_graph(classes, motif_nodes, motif, g)
-            #
-            # print("new graph", g.number_of_nodes())
-            # # nx.draw_networkx(g, with_labels=True)
-            # # plt.show()
-            # assum_mat = assum_mat.to(args.device)
-            # edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
-            # graph.g_list.append(g)
-            # graph.assume_mat.append(assum_mat)
-            # graph.edges.append(edges)
+    # for graph in graphs[::-1]:
+    #     print("original graph",  graph.g.number_of_nodes())
+    #     g = graph.g
+    #     nx.draw_networkx(g, with_labels=True)
+    #     plt.show()
+    #     for pool_layer in range(args.num_pool_layers):
+    #         classes, motif_nodes = pool_without_overlap(g, clique_list[pool_layer])
+    #         assum_mat, adj, g = gen_new_graph(classes, motif_nodes, g)
+    #
+    #         print("new graph", g.number_of_nodes())
+    #         nx.draw_networkx(g, with_labels=True)
+    #         plt.show()
+    #         assum_mat = assum_mat.to(args.device)
+    #         edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
+    #         graph.g_list.append(g)
+    #         graph.assume_mat.append(assum_mat)
+    #         graph.edges.append(edges)
 
 
-            classes, motif_nodes = pool_without_overlap(g, clique_list[pool_layer])
-            assum_mat, adj, g = gen_new_graph(classes, motif_nodes, g)
-
-            print("new graph", g.number_of_nodes())
-            nx.draw_networkx(g, with_labels=True)
-            plt.show()
-            assum_mat = assum_mat.to(args.device)
-            edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
-            graph.g_list.append(g)
-            graph.assume_mat.append(assum_mat)
-            graph.edges.append(edges)
-
-
-            # classes, motif_nodes = pool_without_overlap(g, motif)
-            # assum_mat, adj, g = gen_new_graph(classes, motif_nodes, motif, g)
-            #
-            # print("new graph", g.number_of_nodes())
-            # # nx.draw_networkx(g, with_labels=True)
-            # # plt.show()
-            # assum_mat = assum_mat.to(args.device)
-            # edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
-            # graph.g_list.append(g)
-            # graph.assume_mat.append(assum_mat)
-            # graph.edges.append(edges)
 
     print("len graphs", len(graphs))
     train_graphs, val_graphs, test_graphs = separate_data(graphs, args.train_set_ratio)

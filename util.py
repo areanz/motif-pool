@@ -134,6 +134,7 @@ def load_data(dataset, degree_as_tag = None):
     for g in g_list:
         g.node_features = torch.zeros(len(g.node_tags), len(tagset))
         g.node_features[range(len(g.node_tags)), [tag2index[tag] for tag in g.node_tags]] = 1
+        g.mid_feature = g.node_features
         # print(g.node_features.size())
 
 
@@ -159,8 +160,8 @@ def separate_data(graph_list, train_set_ratio):
     return train_graph_list, val_graph_list, test_graph_list
 
 
-# if __name__ == "__main__":
-#     # g_list, len_label_dict=load_data("PROTEINS", False)
+if __name__ == "__main__":
+    g_list, len_label_dict=load_data("MUTAG", False)
 #     g_list = [1,2,3,4,5,6,7,8,9,10]
 #     train, val, test = separate_data(g_list, 0.8)
 

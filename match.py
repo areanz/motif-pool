@@ -242,7 +242,7 @@ def new_matrix(x, ratio):
     # A = torch.softmax(torch.mm(x, torch.mm(weight, x_t)), dim=1)
     product = torch.softmax(torch.mm(x, x_t), dim=1)
     _, perm = product.sort(dim=-1, descending=True)
-    print("perm", perm)
+    # print("perm", perm)
     A = torch.zeros((x.shape[0], x.shape[0]), dtype=torch.int16)
     topk = int(x.shape[0] * ratio)
     for i in range(x.shape[0]):

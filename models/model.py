@@ -7,6 +7,7 @@ import sys
 from models.mlp import MLP
 from torch_geometric.nn import GCNConv,GINConv
 from torch_geometric.nn import global_mean_pool, global_max_pool
+from match import *
 
 class Motif_Pool(nn.Module):
     def __init__(self, in_features, hidden_dim, args):
@@ -15,6 +16,7 @@ class Motif_Pool(nn.Module):
         self.device = args.device
         self.num_pool_layers = args.num_pool_layers
         self.dropout_ratio = args.dropout_ratio
+        self.args = args
 
 
         self.linear = torch.nn.Linear(hidden_dim*2, args.num_classes)
@@ -34,14 +36,14 @@ class Motif_Pool(nn.Module):
 
 
 
-        for pool_layer in range(self.num_pool_layers):
+        for pool_layer in range(self.num_pool_layers+1):
             # self.linears_prediction.append(nn.Linear(hidden_dim*2, args.num_classes))
-            # if pool_layer == 0:
+            if pool_layer == 0:
             #     self.mlps.append(MLP(in_features, hidden_dim, hidden_dim))
             #     self.gins.append(GINConv(self.mlps[pool_layer*2], 0, False))
             #     self.mlps.append(MLP(hidden_dim, hidden_dim, hidden_dim))
             #     self.gins.append(GINConv(self.mlps[pool_layer*2+1], 0, False))
-            #     self.gcns.append(GCNConv(in_features, hidden_dim))
+                self.gcns.append(GCNConv(in_features, hidden_dim))
             #     self.gcns.append(GCNConv(hidden_dim, hidden_dim))
             # else:
             self.mlps.append(MLP(hidden_dim, hidden_dim, hidden_dim))
@@ -49,10 +51,10 @@ class Motif_Pool(nn.Module):
             self.mlps.append(MLP(hidden_dim, hidden_dim, hidden_dim))
             self.gins.append(GINConv(self.mlps[pool_layer*2+1], 0, False))
             self.gcns.append(GCNConv(hidden_dim, hidden_dim))
-            self.gcns.append(GCNConv(hidden_dim, hidden_dim))
+            # self.gcns.append(GCNConv(hidden_dim, hidden_dim))
 
             self.batch_norms.append(nn.BatchNorm1d(hidden_dim))
-            self.batch_norms.append(nn.BatchNorm1d(hidden_dim))
+            # self.batch_norms.append(nn.BatchNorm1d(hidden_dim))
 
 
     def __preprocess(self, batch_graph, pool_layer, start_idx):
@@ -78,48 +80,70 @@ class Motif_Pool(nn.Module):
 
     def forward(self, batch_graph):
         hidden_rep = []
-        start_idx = [0]
-        edge_mat_list = []
-        node_feature_list = []
-        for i, graph in enumerate(batch_graph):
-            edge_mat_list.append(graph.edge_mat + start_idx[i])
-            node_feature_list.append(graph.node_features)
-            start_idx.append(start_idx[i] + len(graph.g))
-
-        edge_index = torch.cat(edge_mat_list, 1).to(self.device)
-        x = torch.cat(node_feature_list, 0).to(self.device)
-        x = F.relu(self.pre_bn1(self.pre_aggregation[0](x, edge_index)))
-        x = F.relu(self.pre_bn2(self.pre_aggregation[1](x, edge_index)))
-
-        for i, graph in enumerate(batch_graph):
-            graph.mid_feature = x[start_idx[i]:start_idx[i + 1]]
-
-        for pool_layer in range(self.num_pool_layers):
+        start_clique = 5
+        clique_list = [5, 4, 3]
+        for pool_layer in range(self.args.num_pool_layers+1):
+            edge_mat_list = []
+            node_feature_list = []
             start_idx = [0]
+            # print("pool layer", pool_layer)
             for i, graph in enumerate(batch_graph):
-                # if pool_layer == 0:
-                #     graph.mid_feature = deepcopy(graph.node_features).to(self.device)
-                    # print("feature size", graph.mid_feature.size())
-                start_idx.append(start_idx[i] + len(graph.g_list[pool_layer]))
-            # print("start", start_idx)
-            edge_index, x = self.__preprocess(batch_graph, pool_layer, start_idx)
-
-            # x = F.relu(self.batch_norms[pool_layer](self.gcns[pool_layer](x, edge_index)))
-            x = F.relu(self.batch_norms[pool_layer*2](self.gcns[pool_layer*2](x, edge_index)))
-            x = F.relu(self.batch_norms[pool_layer * 2+1](self.gcns[pool_layer * 2+1](x, edge_index)))
-
-            # x = F.relu(self.batch_norms[pool_layer](self.gcns[pool_layer](x, edge_index)))
-            # x = F.dropout(x, self.dropout_ratio, training=self.training)
-            if pool_layer < self.num_pool_layers-1:
-                for i, graph in enumerate(batch_graph):
-                    graph.mid_feature = x[start_idx[i]:start_idx[i+1]]
-
+                new_mat = new_matrix(graph.node_features, self.args.adaptive_ratio)
+                adj = nx.adj_matrix(graph.g) + new_mat.numpy()
+                graph.g = nx.from_numpy_matrix(adj)
+                # classes, motif_nodes = pool_without_overlap(graph.g, clique_list[pool_layer])
+                # assum_mat, adj, graph.g = gen_new_graph(classes, motif_nodes, graph.g)
+                # graph.node_features = torch.matmul(graph.assume_mat, graph.node_features)
+                adj = nx.adj_matrix(graph.g).tocoo()
+                graph.edge_mat = edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
+                edge_mat_list.append(graph.edge_mat + start_idx[i])
+                node_feature_list.append(graph.node_features)
+                start_idx.append(start_idx[i] + len(graph.g))
+            # print("node feature list", node_feature_list)
+            edge_index = torch.cat(edge_mat_list, 1).to(self.device)
+            x = torch.cat(node_feature_list, 0).to(self.device)
+            x = F.relu(self.batch_norms[pool_layer](self.gcns[pool_layer](x, edge_index)))
+            # x = F.relu(self.pre_bn1(self.pre_aggregation[0](x, edge_index)))
+            # x = F.relu(self.pre_bn2(self.pre_aggregation[1](x, edge_index)))
+            if pool_layer == self.args.num_pool_layers:
+                break
+            for i, graph in enumerate(batch_graph):
+                graph.node_features = x[start_idx[i]:start_idx[i + 1]]
+                classes, motif_nodes = pool_without_overlap(graph.g, clique_list[pool_layer])
+                assum_mat, adj, graph.g = gen_new_graph(classes, motif_nodes, graph.g)
+                graph.node_features = torch.matmul(assum_mat, graph.node_features)
 
             batch = []
             for i, graph in enumerate(batch_graph):
-                batch[start_idx[i]:start_idx[i+1]] = [i]*(start_idx[i+1]-start_idx[i])
+                batch[start_idx[i]:start_idx[i + 1]] = [i] * (start_idx[i + 1] - start_idx[i])
             batch = torch.LongTensor(batch).to(self.device)
             hidden_rep.append(torch.cat([global_max_pool(x, batch), global_mean_pool(x, batch)], dim=1))
+
+        # for i, graph in enumerate(batch_graph):
+        #     graph.mid_feature = x[start_idx[i]:start_idx[i + 1]]
+        #
+        # for pool_layer in range(self.num_pool_layers):
+        #     start_idx = [0]
+        #     for i, graph in enumerate(batch_graph):
+        #         start_idx.append(start_idx[i] + len(graph.g_list[pool_layer]))
+        #     edge_index, x = self.__preprocess(batch_graph, pool_layer, start_idx)
+        #
+        #     # x = F.relu(self.batch_norms[pool_layer](self.gcns[pool_layer](x, edge_index)))
+        #     x = F.relu(self.batch_norms[pool_layer*2](self.gcns[pool_layer*2](x, edge_index)))
+        #     x = F.relu(self.batch_norms[pool_layer * 2+1](self.gcns[pool_layer * 2+1](x, edge_index)))
+        #
+        #     # x = F.relu(self.batch_norms[pool_layer](self.gcns[pool_layer](x, edge_index)))
+        #     # x = F.dropout(x, self.dropout_ratio, training=self.training)
+        #     if pool_layer < self.num_pool_layers-1:
+        #         for i, graph in enumerate(batch_graph):
+        #             graph.mid_feature = x[start_idx[i]:start_idx[i+1]]
+        #
+        #
+        #     batch = []
+        #     for i, graph in enumerate(batch_graph):
+        #         batch[start_idx[i]:start_idx[i+1]] = [i]*(start_idx[i+1]-start_idx[i])
+        #     batch = torch.LongTensor(batch).to(self.device)
+        #     hidden_rep.append(torch.cat([global_max_pool(x, batch), global_mean_pool(x, batch)], dim=1))
 
         h = 0
         for layer, rep in enumerate(hidden_rep):
