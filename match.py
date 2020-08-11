@@ -117,15 +117,15 @@ def def_motif(motif):
 #     # print('motif_ndes', motif_nodes)
 #     return classes, motif_nodes
 
-def pool_without_overlap(g, motif_clique):
+def pool_without_overlap(g, motif_clique_size):
 # def match_motif_with_overlap(g, motif_clique):
 #     nx.draw_networkx(g)
 #     plt.show()
     motif_nodes = set()
 
-    start_time = time.time()
-    all_cliques = nx.algorithms.clique.enumerate_all_cliques(g)
-    overlap_clique = k_clique_communities(g, motif_clique.number_of_nodes())
+    # start_time = time.time()
+    # all_cliques = nx.algorithms.clique.enumerate_all_cliques(g)
+    overlap_clique = k_clique_communities(g, motif_clique_size)
     classes = []
     # subgraph_matched = []
     # i = 0
@@ -149,13 +149,12 @@ def pool_without_overlap(g, motif_clique):
     #         if len(overlap_nodes) >= (motif_clique.number_of_nodes()/2):
     #             classes.remove(classes[i])
     #             break
+    # print("overlap_clique")
     for clique in overlap_clique:
+        # print(clique)
         classes.append(list(clique))
     for i in classes:
         motif_nodes = motif_nodes.union(set(i))
-    end_time = time.time()
-    logging.warning("wipe out overlap time {}".format(end_time-start_time))
-    # print('motif_ndes', motif_nodes)
     return classes, motif_nodes
 
 
@@ -164,10 +163,9 @@ def pool_without_overlap(g, motif_clique):
 
 
 """根据匹配的motif进行pooling操作，生成新的图"""
-def gen_new_graph(classes, motif_nodes, motif, g):
-    start_time = time.time()
+def gen_new_graph(classes, motif_nodes, g):
+    # start_time = time.time()
     nodes_num_of_graph = nx.number_of_nodes(g)
-    motif_size = len(nx.nodes(motif))
     none_motif_nodes = g.nodes - motif_nodes
     new_graph = nx.Graph()
     # node_dic key: original node in g, value: the corresponding node in the new graph
@@ -216,8 +214,8 @@ def gen_new_graph(classes, motif_nodes, motif, g):
     assum_mat = torch.from_numpy(np.array(assum_list, dtype=np.float32))
     adj = nx.adj_matrix(new_graph).tocoo()
 
-    end_time = time.time()
-    logging.warning("gen new graph time {}".format(end_time-start_time))
+    # end_time = time.time()
+    # logging.warning("gen new graph time {}".format(end_time-start_time))
     return assum_mat, adj, new_graph
 
 def edge_to_nxGraph(edges, num_nodes):
@@ -237,6 +235,19 @@ def edge_to_nxGraph(edges, num_nodes):
         g.add_nodes_from(single_nodes)
     return g
 
+def new_matrix(x, ratio):
+    # weight = nn.Parameter(torch.FloatTensor(x.shape[1], x.shape[1]))
+    # nn.init.xavier_uniform_(weight.data, gain=1.414)
+    x_t = torch.t(x)
+    # A = torch.softmax(torch.mm(x, torch.mm(weight, x_t)), dim=1)
+    product = torch.softmax(torch.mm(x, x_t), dim=1)
+    _, perm = product.sort(dim=-1, descending=True)
+    print("perm", perm)
+    A = torch.zeros((x.shape[0], x.shape[0]), dtype=torch.int16)
+    topk = int(x.shape[0] * ratio)
+    for i in range(x.shape[0]):
+        A[i, perm[i, :topk]] = 1
+    return A
 
 
 

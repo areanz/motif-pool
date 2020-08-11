@@ -107,11 +107,11 @@ def main():
     parser.add_argument('--hidden_dim', type=int, default=32,
                         help='number of hidden units (default: 32)')
     parser.add_argument('--dropout_ratio', type=float, default=0.5,help='dropout ratio')
-    parser.add_argument('--degree_as_tag', action="store_true",
+    parser.add_argument('--degree_as_tag', action="store_true",default=False,
     					help='let the input node features be the degree of nodes (heuristics for unlabeled graph)')
     parser.add_argument('--filename', type=str, default="", help='output file')
     parser.add_argument("--train_set_ratio", type=float, default=0.8, help='the ratio of training set')
-    parser.add_argument('--num_pool_layers', type=int, default=1, help='the number of pooling layers')
+    parser.add_argument('--num_pool_layers', type=int, default=3, help='the number of pooling layers')
     parser.add_argument('--neighbor_pool_type', type=str, default='average', choices=['sum', 'average', 'max'],
                         help='pooling for neighboring nodes')
     args = parser.parse_args()
@@ -124,24 +124,20 @@ def main():
         torch.cuda.manual_seed(args.seed)
         args.device = 'cuda:0'
 
-    # graphs, num_classes = load_data(args.dataset, args.degree_as_tag)
     graphs, args.num_classes = load_data(args.dataset, args.degree_as_tag)
 
-    motif = def_motif(args.motif)
-    motif_size = motif.number_of_nodes()
-
-    four_clique = def_motif("4-clique")
-    four_clique_size = four_clique.number_of_nodes()
+    # motif = def_motif(args.motif)
+    # motif_size = motif.number_of_nodes()
+    #
+    # four_clique = def_motif("4-clique")
+    # four_clique_size = four_clique.number_of_nodes()
+    clique_list = [5,4,3]
     # reverse graphs[] to make sure the index of graph is right when remove a graph from graphs[]
     for graph in graphs[::-1]:
         print("original graph",  graph.g.number_of_nodes())
-        # if graph.g.number_of_nodes() > 60:
-        #     graphs.remove(graph)
-        #     print("remove graph")
-        #     continue
         g = graph.g
-        # nx.draw_networkx(g, with_labels=True)
-        # plt.show()
+        nx.draw_networkx(g, with_labels=True)
+        plt.show()
         # print("directed", nx.is_directed(g))
         for pool_layer in range(args.num_pool_layers):
             # result = ESU(g, four_clique_size)
@@ -171,30 +167,30 @@ def main():
             # graph.edges.append(edges)
 
 
-            classes, motif_nodes = pool_without_overlap(g, four_clique)
-            # print("second is directed", nx.is_directed(g))
-            assum_mat, adj, g = gen_new_graph(classes, motif_nodes, four_clique, g)
+            classes, motif_nodes = pool_without_overlap(g, clique_list[pool_layer])
+            assum_mat, adj, g = gen_new_graph(classes, motif_nodes, g)
 
             print("new graph", g.number_of_nodes())
-            # nx.draw_networkx(g, with_labels=True)
-            # plt.show()
+            nx.draw_networkx(g, with_labels=True)
+            plt.show()
             assum_mat = assum_mat.to(args.device)
             edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
             graph.g_list.append(g)
             graph.assume_mat.append(assum_mat)
             graph.edges.append(edges)
 
-            classes, motif_nodes = pool_without_overlap(g, motif)
-            assum_mat, adj, g = gen_new_graph(classes, motif_nodes, motif, g)
 
-            print("new graph", g.number_of_nodes())
-            # nx.draw_networkx(g, with_labels=True)
-            # plt.show()
-            assum_mat = assum_mat.to(args.device)
-            edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
-            graph.g_list.append(g)
-            graph.assume_mat.append(assum_mat)
-            graph.edges.append(edges)
+            # classes, motif_nodes = pool_without_overlap(g, motif)
+            # assum_mat, adj, g = gen_new_graph(classes, motif_nodes, motif, g)
+            #
+            # print("new graph", g.number_of_nodes())
+            # # nx.draw_networkx(g, with_labels=True)
+            # # plt.show()
+            # assum_mat = assum_mat.to(args.device)
+            # edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
+            # graph.g_list.append(g)
+            # graph.assume_mat.append(assum_mat)
+            # graph.edges.append(edges)
 
     print("len graphs", len(graphs))
     train_graphs, val_graphs, test_graphs = separate_data(graphs, args.train_set_ratio)
