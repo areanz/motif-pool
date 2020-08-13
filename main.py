@@ -90,13 +90,13 @@ def main():
     # Training settings
     # Note: Hyper-parameters need to be tuned in order to obtain results reported in the paper.
     parser = argparse.ArgumentParser(description='PyTorch graph convolutional neural net for whole-graph classification')
-    parser.add_argument('--dataset', type=str, default="MUTAG",
+    parser.add_argument('--dataset', type=str, default="REDDITBINARY",
                         help='name of dataset (default: PTC)')
     parser.add_argument('--motif', type=str, default="triangle",
                         help='triangle, 3star, square')
-    parser.add_argument('--batch_size', type=int, default=4,
+    parser.add_argument('--batch_size', type=int, default=64,
                         help='input batch size for training (default: 32)')
-    parser.add_argument('--epochs', type=int, default=300,
+    parser.add_argument('--epochs', type=int, default=150,
                         help='number of epochs to train (default: 350)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate (default: 0.01)')
@@ -123,7 +123,7 @@ def main():
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(args.seed)
-        args.device = 'cuda:0'
+        args.device = 'cuda:4'
 
     graphs, args.num_classes = load_data(args.dataset, args.degree_as_tag)
 

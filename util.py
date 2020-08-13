@@ -24,6 +24,8 @@ class S2VGraph(object):
         self.edges = []
         self.g_list = []
         self.mid_feature = 0
+        self.mid_edges = 0
+        self.mid_g = 0
 
         self.max_neighbor = 0
 
@@ -160,8 +162,8 @@ def separate_data(graph_list, train_set_ratio):
     return train_graph_list, val_graph_list, test_graph_list
 
 
-if __name__ == "__main__":
-    g_list, len_label_dict=load_data("MUTAG", False)
+# if __name__ == "__main__":
+#     g_list, len_label_dict=load_data("MUTAG", False)
 #     g_list = [1,2,3,4,5,6,7,8,9,10]
 #     train, val, test = separate_data(g_list, 0.8)
 

@@ -82,23 +82,25 @@ class Motif_Pool(nn.Module):
         hidden_rep = []
         start_clique = 5
         clique_list = [5, 4, 3]
+        for i, graph in enumerate(batch_graph):
+            graph.mid_feature = graph.node_features
+            graph.mid_edges = graph.edge_mat
+            graph.mid_g = graph.g
+
         for pool_layer in range(self.args.num_pool_layers+1):
             edge_mat_list = []
             node_feature_list = []
             start_idx = [0]
             # print("pool layer", pool_layer)
             for i, graph in enumerate(batch_graph):
-                new_mat = new_matrix(graph.node_features, self.args.adaptive_ratio)
-                adj = nx.adj_matrix(graph.g) + new_mat.numpy()
-                graph.g = nx.from_numpy_matrix(adj)
-                # classes, motif_nodes = pool_without_overlap(graph.g, clique_list[pool_layer])
-                # assum_mat, adj, graph.g = gen_new_graph(classes, motif_nodes, graph.g)
-                # graph.node_features = torch.matmul(graph.assume_mat, graph.node_features)
-                adj = nx.adj_matrix(graph.g).tocoo()
-                graph.edge_mat = edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
-                edge_mat_list.append(graph.edge_mat + start_idx[i])
-                node_feature_list.append(graph.node_features)
-                start_idx.append(start_idx[i] + len(graph.g))
+                new_mat = new_matrix(graph.mid_feature, self.args.adaptive_ratio)
+                adj = nx.adj_matrix(graph.mid_g).todense() + new_mat.numpy()
+                graph.mid_g = nx.from_numpy_matrix(adj)
+                adj = nx.adj_matrix(graph.mid_g).tocoo()
+                graph.mid_edges = torch.from_numpy(np.mat([adj.row, adj.col], dtype=np.int64))
+                edge_mat_list.append(graph.mid_edges + start_idx[i])
+                node_feature_list.append(graph.mid_feature)
+                start_idx.append(start_idx[i] + len(graph.mid_g))
             # print("node feature list", node_feature_list)
             edge_index = torch.cat(edge_mat_list, 1).to(self.device)
             x = torch.cat(node_feature_list, 0).to(self.device)
@@ -107,15 +109,16 @@ class Motif_Pool(nn.Module):
             # x = F.relu(self.pre_bn2(self.pre_aggregation[1](x, edge_index)))
             if pool_layer == self.args.num_pool_layers:
                 break
-            for i, graph in enumerate(batch_graph):
-                graph.node_features = x[start_idx[i]:start_idx[i + 1]]
-                classes, motif_nodes = pool_without_overlap(graph.g, clique_list[pool_layer])
-                assum_mat, adj, graph.g = gen_new_graph(classes, motif_nodes, graph.g)
-                graph.node_features = torch.matmul(assum_mat, graph.node_features)
 
             batch = []
             for i, graph in enumerate(batch_graph):
+                graph.mid_feature = x[start_idx[i]:start_idx[i + 1]]
+                classes, motif_nodes = pool_without_overlap(graph.mid_g, clique_list[pool_layer])
+                assum_mat, adj, graph.mid_g = gen_new_graph(classes, motif_nodes, graph.mid_g)
+                assum_mat = assum_mat.to(self.device)
+                graph.mid_feature = torch.matmul(assum_mat, graph.mid_feature)
                 batch[start_idx[i]:start_idx[i + 1]] = [i] * (start_idx[i + 1] - start_idx[i])
+
             batch = torch.LongTensor(batch).to(self.device)
             hidden_rep.append(torch.cat([global_max_pool(x, batch), global_mean_pool(x, batch)], dim=1))
 
